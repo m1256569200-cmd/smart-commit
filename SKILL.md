@@ -1,38 +1,41 @@
 ---
-name: code-review
-description: Perform a structured code review of a diff, branch, or pull request. Use when the user asks to review code, check a PR, or run this skill before merging.
+name: changelog-gen
+description: Generate a changelog entry from recent commits or a diff range. Use when the user asks to update the changelog, write release notes, or summarize what changed.
 ---
 
-# Code Review
+# Changelog Gen
 
-Review code like a senior engineer: find real problems, skip the noise.
+Turn git history into a human-readable changelog entry.
 
 ## Workflow
 
-1. Get the diff. Prefer `git diff <base>...<head>` for branches, or the PR diff. For uncommitted work, use `git diff`.
-2. Understand intent first: read the surrounding code and, if available, the linked issue or PR description. Don't flag style in code you don't understand yet.
-3. Review in three passes, in this order:
-   - **Correctness**: logic errors, off-by-one, null/undefined handling, race conditions, error paths that swallow exceptions.
-   - **Security**: injection (SQL, shell, template), auth checks on new endpoints, secrets in code, unsafe deserialization, overly broad permissions.
-   - **Maintainability**: only flag what genuinely hurts future readers — dead code, misleading names, duplicated logic worth extracting.
-4. Output format — group findings by severity:
+1. Determine the range. Ask the user if unclear; sensible defaults:
+   - Since last tag: `git log $(git describe --tags --abbrev=0)..HEAD --oneline`
+   - Unreleased only: commits not yet in the changelog.
+2. Read the full messages (`git log <range> --format='%h %s%n%b'`), not just the one-liners. Group by intent, not by commit:
+   - **Added** — new features (`feat`)
+   - **Fixed** — bug fixes (`fix`)
+   - **Changed** — behavior changes, refactors, perf
+   - **Docs / Chores** — fold into one line unless notable; never list every chore commit individually.
+3. Write entries for humans, not commit hashes:
+   - One bullet per user-visible change. Merge duplicates ("fix login" × 3 → one bullet).
+   - Past tense, plain language: "Fixed crash when uploading files over 100MB" — not "fix: upload bug".
+   - Link PR/issue numbers when present in the messages (`#123`).
+4. Output a Markdown section ready to paste under an `## [Unreleased]` or version heading:
 
+```markdown
+## [1.4.0] - 2026-10-12
+
+### Added
+- OAuth2 refresh token rotation (#128)
+
+### Fixed
+- Crash when uploading files over 100MB (#131)
+- Search returning 500 on empty query (#129)
 ```
-## 🔴 Blockers (must fix)
-- `path/to/file.ts:42` — description + why it breaks + suggested fix
-
-## 🟡 Suggestions (consider)
-- `path/to/file.ts:87` — description + suggestion
-
-## 🟢 Nits (optional, batch them)
-- ...
-```
-
-If there is nothing wrong, say so in one line and name what you checked. Never invent problems to fill a quota.
 
 ## Rules
 
-- Every finding must cite a file and line. No vague "consider improving error handling".
-- Do not comment on formatting — linters own that.
-- Do not request changes for personal taste; tie each blocker to correctness or security.
-- Keep it scannable: short bullets, code refs, no essays.
+- Skip merge commits and reverts unless the revert itself is user-visible.
+- If the range has 50+ commits, summarize themes instead of listing everything, and say you did.
+- Do not edit CHANGELOG.md in place unless the user asks; output the section.
