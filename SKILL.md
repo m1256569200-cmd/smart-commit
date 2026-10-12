@@ -1,41 +1,43 @@
 ---
-name: changelog-gen
-description: Generate a changelog entry from recent commits or a diff range. Use when the user asks to update the changelog, write release notes, or summarize what changed.
+name: smart-commit
+description: Generate a Conventional Commits message from staged changes or a diff. Use when the user asks to commit, write a commit message, or run this skill before committing.
 ---
 
-# Changelog Gen
+# Smart Commit
 
-Turn git history into a human-readable changelog entry.
+Turn `git diff` output into a clean [Conventional Commits](https://www.conventionalcommits.org/) message.
 
 ## Workflow
 
-1. Determine the range. Ask the user if unclear; sensible defaults:
-   - Since last tag: `git log $(git describe --tags --abbrev=0)..HEAD --oneline`
-   - Unreleased only: commits not yet in the changelog.
-2. Read the full messages (`git log <range> --format='%h %s%n%b'`), not just the one-liners. Group by intent, not by commit:
-   - **Added** — new features (`feat`)
-   - **Fixed** — bug fixes (`fix`)
-   - **Changed** — behavior changes, refactors, perf
-   - **Docs / Chores** — fold into one line unless notable; never list every chore commit individually.
-3. Write entries for humans, not commit hashes:
-   - One bullet per user-visible change. Merge duplicates ("fix login" × 3 → one bullet).
-   - Past tense, plain language: "Fixed crash when uploading files over 100MB" — not "fix: upload bug".
-   - Link PR/issue numbers when present in the messages (`#123`).
-4. Output a Markdown section ready to paste under an `## [Unreleased]` or version heading:
+1. Run `git diff --cached --stat` first. If nothing is staged, run `git diff --stat` and tell the user which files the message will cover (unstaged changes).
+2. Read the actual diff (`git diff --cached`, limited to a reasonable size). Never guess from filenames alone.
+3. Write the message in this format:
 
-```markdown
-## [1.4.0] - 2026-10-12
+```
+<type>(<scope>): <short imperative summary>
 
-### Added
-- OAuth2 refresh token rotation (#128)
-
-### Fixed
-- Crash when uploading files over 100MB (#131)
-- Search returning 500 on empty query (#129)
+<body — what changed and why, 1-3 lines, only if non-obvious>
 ```
 
-## Rules
+4. Rules:
+   - `type`: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert. Pick exactly one.
+   - `scope`: the module, file, or area touched (e.g. `auth`, `api`, `readme`). Omit if the change spans the whole repo.
+   - Summary: imperative mood ("add", not "added"), ≤ 72 chars, no trailing period.
+   - If the diff mixes unrelated changes, propose splitting into multiple commits instead of one message.
+5. Output ONLY the commit message in a code block so it can be copied. Do not run `git commit` unless the user explicitly asks.
 
-- Skip merge commits and reverts unless the revert itself is user-visible.
-- If the range has 50+ commits, summarize themes instead of listing everything, and say you did.
-- Do not edit CHANGELOG.md in place unless the user asks; output the section.
+## Examples
+
+```
+feat(auth): add OAuth2 refresh token rotation
+
+Rotates refresh tokens on every use and invalidates the previous
+one to reduce the impact of token theft.
+```
+
+```
+fix(api): handle empty query param in /search
+
+Previously returned 500 when `q` was missing; now returns 400
+with a clear error message.
+```
